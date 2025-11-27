@@ -103,7 +103,7 @@ Mais do que um simples aplicativo de gastos, é um assistente financeiro intelig
 
 ## Status do Desenvolvimento
 | Módulo	          | Status |  | Cobertura                   |
-|-------------------------------------------------------------|
+|-------------------|--------|--|-----------------------------|
 | Autenticação	    | ✅	   |  | Completo                    |
 | Transações	      | ✅	   |  | CRUD + Análise              |
 | Dashboard	        | ✅	   |  | Múltiplas Métricas          |
