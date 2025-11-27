@@ -54,52 +54,52 @@ Mais do que um simples aplicativo de gastos, é um assistente financeiro intelig
 - **Recharts** para visualizações
 
 ## Estrutura do Projeto
-money-flow/
-|  backend/
-|  ├── src/
-|  │ ├── db/
-|  │ │ ├── config/ # Configuração e conexão do banco
-|  │ │ ├── database/ # Banco de dados SQLite
-|  │ │ ├── migrations/ # Sistema de migrações automáticas
-|  │ │ └── models/ # Modelos de dados
-|  │ ├── logic/
-|  │ │ ├── controllers/ # Lógica de negócio│ │ ├── middlewares/ # Interceptores de requisições
-|  │ │ └── routes/ # Definição de rotas
-|  │ └── app.js # Classe principal da aplicação
-|  ├── .env # Variáveis de ambiente
-|  ├── package.json # Dependências e scripts
-|  └── server.js # Ponto de entrada
-|  frontend/
-|  ├── src/
-|  │ ├── components/
-|  │ │ ├── layout/ # Componentes de layout geral
-|  │ │ └── ui/ # Componentes de interface reutilizáveis
-|  │ ├── contexts/ # Contexts do React para estado global
-|  │ ├── pages/ # Páginas da aplicação
-|  │ │ └── auth/ # Páginas de autenticação
-|  │ ├── services/ # Serviços de API
-|  │ ├── styles/ # Estilos globais e temas
-|  │ ├── types/ # Definições TypeScript
-|  │ ├── App.tsx # Componente principal
-|  │ ├── main.tsx # Ponto de entrada
-|  │ └── vite-env.d.ts # Tipos do Vite
-|  ├── index.html # HTML base
-|  ├── package.json # Dependências e scripts
-|  ├── tailwind.config.js # Configuração do Tailwind
-|  ├── tsconfig.json # Configuração TypeScript
-|  └── vite.config.ts # Configuração do Vite
+- money-flow/
+- |  backend/
+- |  ├── src/
+- |  │ ├── db/
+- |  │ │ ├── config/ # Configuração e conexão do banco
+- |  │ │ ├── database/ # Banco de dados SQLite
+- |  │ │ ├── migrations/ # Sistema de migrações automáticas
+- |  │ │ └── models/ # Modelos de dados
+- |  │ ├── logic/
+- |  │ │ ├── controllers/ # Lógica de negócio│ │ ├── middlewares/ # Interceptores de requisições
+- |  │ │ └── routes/ # Definição de rotas
+- |  │ └── app.js # Classe principal da aplicação
+- |  ├── .env # Variáveis de ambiente
+- |  ├── package.json # Dependências e scripts
+- |  └── server.js # Ponto de entrada
+- |  frontend/
+- |  ├── src/
+- |  │ ├── components/
+- |  │ │ ├── layout/ # Componentes de layout geral
+- |  │ │ └── ui/ # Componentes de interface reutilizáveis
+- |  │ ├── contexts/ # Contexts do React para estado global
+- |  │ ├── pages/ # Páginas da aplicação
+- |  │ │ └── auth/ # Páginas de autenticação
+- |  │ ├── services/ # Serviços de API
+- |  │ ├── styles/ # Estilos globais e temas
+- |  │ ├── types/ # Definições TypeScript
+- |  │ ├── App.tsx # Componente principal
+- |  │ ├── main.tsx # Ponto de entrada
+- |  │ └── vite-env.d.ts # Tipos do Vite
+- |  ├── index.html # HTML base
+- |  ├── package.json # Dependências e scripts
+- |  ├── tailwind.config.js # Configuração do Tailwind
+- |  ├── tsconfig.json # Configuração TypeScript
+- |  └── vite.config.ts # Configuração do Vite
 
 ## 🚀 Como Executar
 ### Backend
-cd backend
-npm install
-npm run migrate
-npm run dev
+- cd backend
+- npm install
+- npm run migrate
+- npm run dev
 
 ### Frontend
-cd frontend
-npm install
-npm run dev
+- cd frontend
+- npm install
+- npm run dev
 
 ## Status do Desenvolvimento
 Módulo	          Status	 Cobertura
@@ -111,18 +111,18 @@ Colaboração	      ✅	     Compartilhamento Completo
 Simulações	      ✅	     Cenários Flexíveis
 
 ## 🔮 Roadmap Futuro (SEM GARANTIA DE TEMPO)
-Fase 2 - Aprimoramentos:
-• Aplicativo Mobile Nativo - React Native para iOS/Android
-• Integração com Bancos - Open Banking via APIs regulamentadas
-• Relatórios Avançados - PDF customizável e compartilhável
-• Sistema de Alertas - Notificações push personalizadas
-Fase 3 - Expansão:
-• Assistente IA - Análise preditiva e recomendações inteligentes
-• Internacionalização - Suporte a múltiplas moedas e idiomas
-• Sync em Tempo Real - WebSockets para colaboração instantânea
-• Módulo de Investimentos - Acompanhamento de carteira
-Fase 4 - Ecossistema:
-• API Pública - Desenvolvedores criam integrações
-• Versão Business - Para pequenas empresas
-• Programa de Educação - Conteúdo financeiro integrado
-• Parcerias Estratégicas - Instituições financeiras e educacionais
+### Fase 2 - Aprimoramentos:
+- Aplicativo Mobile Nativo - React Native para iOS/Android
+- Integração com Bancos - Open Banking via APIs regulamentadas
+- Relatórios Avançados - PDF customizável e compartilhável
+- Sistema de Alertas - Notificações push personalizadas
+### Fase 3 - Expansão:
+- Assistente IA - Análise preditiva e recomendações inteligentes
+- Internacionalização - Suporte a múltiplas moedas e idiomas
+- Sync em Tempo Real - WebSockets para colaboração instantânea
+- Módulo de Investimentos - Acompanhamento de carteira
+### Fase 4 - Ecossistema:
+- API Pública - Desenvolvedores criam integrações
+- Versão Business - Para pequenas empresas
+- Programa de Educação - Conteúdo financeiro integrado
+- Parcerias Estratégicas - Instituições financeiras e educacionais
