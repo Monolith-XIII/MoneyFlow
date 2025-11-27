@@ -102,13 +102,14 @@ Mais do que um simples aplicativo de gastos, é um assistente financeiro intelig
 - npm run dev
 
 ## Status do Desenvolvimento
-Módulo	          Status	 Cobertura
-Autenticação	    ✅	     Completo
-Transações	      ✅	     CRUD + Análise
-Dashboard	        ✅	     Múltiplas Métricas
-Metas Financeiras	✅	     Metas + Contribuições
-Colaboração	      ✅	     Compartilhamento Completo
-Simulações	      ✅	     Cenários Flexíveis
+| Módulo	          | Status |  | Cobertura                   |
+|-------------------------------------------------------------|
+| Autenticação	    | ✅	   |  | Completo                    |
+| Transações	      | ✅	   |  | CRUD + Análise              |
+| Dashboard	        | ✅	   |  | Múltiplas Métricas          |
+| Metas Financeiras |	✅	   |  | Metas + Contribuições       |
+| Colaboração	      | ✅	   |  | Compartilhamento Completo   |
+| Simulações	      | ✅	   |  | Cenários Flexíveis          |
 
 ## 🔮 Roadmap Futuro (SEM GARANTIA DE TEMPO)
 ### Fase 2 - Aprimoramentos:
