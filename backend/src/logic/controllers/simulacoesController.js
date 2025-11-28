@@ -74,12 +74,20 @@ class SimulacoesController {
       const { usuario_id } = req.user;
       const { nome, descricao, scenario_data } = req.body;
 
+      console.log('📥 Dados recebidos no backend:', { nome, descricao, scenario_data });
+
       if (!nome || !scenario_data) {
         return res.status(400).json({ error: 'Nome e dados do cenário são obrigatórios' });
       }
 
-      // Simular impacto financeiro
-      const resultado = this.simularCenario(scenario_data);
+      if (!scenario_data.receita_atual || !scenario_data.despesa_atual) {
+        return res.status(400).json({ error: 'Receita atual e despesa atual são obrigatórias' });
+      }
+
+      // Simular impacto financeiro - CHAMADA CORRIGIDA
+      const resultado = SimulacoesController.simularCenario(scenario_data);
+
+      console.log('🎯 Resultado da simulação:', resultado);
 
       const result = await new Promise((resolve, reject) => {
         MoneyFlowDB.run(
@@ -112,8 +120,8 @@ class SimulacoesController {
     }
   }
 
-  // Simular cenário
-  simularCenario(scenario_data) {
+  // Simular cenário - MÉTODO ESTÁTICO (corrigido)
+  static simularCenario(scenario_data) {
     const {
       receita_atual,
       despesa_atual,
@@ -123,6 +131,8 @@ class SimulacoesController {
       investimento_mensal = 0,
       taxa_retorno_anual = 0
     } = scenario_data;
+
+    console.log('🔧 Simulando cenário com dados:', scenario_data);
 
     const resultados = {
       saldo_atual: receita_atual - despesa_atual,
@@ -146,23 +156,25 @@ class SimulacoesController {
 
       resultados.projecao_mensal.push({
         mes,
-        receita: receita_projetada,
-        despesa: despesa_projetada,
-        saldo_mensal: saldo_mensal,
-        investimento_acumulado: investimento_acumulado,
-        saldo_total_acumulado: saldo_acumulado
+        receita: Math.round(receita_projetada),
+        despesa: Math.round(despesa_projetada),
+        saldo_mensal: Math.round(saldo_mensal),
+        investimento_acumulado: Math.round(investimento_acumulado),
+        saldo_total_acumulado: Math.round(saldo_acumulado)
       });
     }
 
     // Calcular resumo
     const ultimoMes = resultados.projecao_mensal[resultados.projecao_mensal.length - 1];
     resultados.resumo = {
-      saldo_final: ultimoMes.saldo_total_acumulado,
-      investimento_total: ultimoMes.investimento_acumulado,
-      economia_total: (despesa_atual * meses_projecao) - resultados.projecao_mensal.reduce((sum, mes) => sum + mes.despesa, 0),
-      receita_total_projetada: resultados.projecao_mensal.reduce((sum, mes) => sum + mes.receita, 0)
+      saldo_final: Math.round(ultimoMes.saldo_total_acumulado),
+      investimento_total: Math.round(ultimoMes.investimento_acumulado),
+      economia_total: Math.round((despesa_atual * meses_projecao) - resultados.projecao_mensal.reduce((sum, mes) => sum + mes.despesa, 0)),
+      receita_total_projetada: Math.round(resultados.projecao_mensal.reduce((sum, mes) => sum + mes.receita, 0)),
+      despesa_total_projetada: Math.round(resultados.projecao_mensal.reduce((sum, mes) => sum + mes.despesa, 0))
     };
 
+    console.log('📈 Resultado final da simulação:', resultados.resumo);
     return resultados;
   }
 

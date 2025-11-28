@@ -38,17 +38,36 @@ class ColaboracaoController {
     try {
       const { usuario_id } = req.user;
 
+      // Buscar email do usuário
+      const usuario = await new Promise((resolve, reject) => {
+        MoneyFlowDB.get(
+          'SELECT email FROM usuarios WHERE id = ?',
+          [usuario_id],
+          (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          }
+        );
+      });
+
+      if (!usuario) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
+
+      // Query simplificada sem JOIN com token_convite
       const convites = await new Promise((resolve, reject) => {
         MoneyFlowDB.all(
-          `SELECT c.*, u.nome as remetente_nome, o.nome as objetivo_nome
-           FROM convites_colaboracao c
-           JOIN usuarios u ON c.usuario_remetente_id = u.id
-           JOIN objetivos o ON c.token LIKE '%' || o.id || '%'
-           WHERE c.usuario_destinatario_email = (
-             SELECT email FROM usuarios WHERE id = ?
-           ) AND c.status = 'pendente' AND c.expira_em > datetime('now')
-           ORDER BY c.created_at DESC`,
-          [usuario_id],
+          `SELECT 
+            c.*,
+            u.nome as remetente_nome,
+            u.email as remetente_email
+          FROM convites_colaboracao c
+          JOIN usuarios u ON c.usuario_remetente_id = u.id
+          WHERE c.usuario_destinatario_email = ? 
+          AND c.status = 'pendente'
+          AND c.expira_em > datetime('now')
+          ORDER BY c.created_at DESC`,
+          [usuario.email],
           (err, rows) => {
             if (err) reject(err);
             else resolve(rows || []);
@@ -56,7 +75,68 @@ class ColaboracaoController {
         );
       });
 
-      res.json(convites);
+      // Para cada convite, buscar informações do objetivo relacionado
+      const convitesCompletos = await Promise.all(
+        convites.map(async (convite) => {
+          try {
+            // Buscar objetivo do remetente (mais simples)
+            const objetivo = await new Promise((resolve, reject) => {
+              MoneyFlowDB.get(
+                `SELECT o.id, o.nome as titulo, o.descricao, o.valor_total, o.valor_atual
+                FROM objetivos o
+                WHERE o.usuario_id = ?
+                LIMIT 1`,
+                [convite.usuario_remetente_id],
+                (err, row) => {
+                  if (err) {
+                    console.error('Erro ao buscar objetivo:', err);
+                    resolve(null);
+                  } else {
+                    resolve(row);
+                  }
+                }
+              );
+            });
+
+            return {
+              id: convite.id,
+              token: convite.token,
+              data_convite: convite.created_at,
+              expira_em: convite.expira_em,
+              objetivo: objetivo ? {
+                titulo: objetivo.titulo,
+                descricao: objetivo.descricao,
+                valor_total: objetivo.valor_total,
+                valor_atual: objetivo.valor_atual
+              } : {
+                titulo: 'Objetivo do convite',
+                descricao: 'Aceite o convite para ver detalhes'
+              },
+              proprietario: {
+                nome: convite.remetente_nome,
+                email: convite.remetente_email
+              }
+            };
+          } catch (error) {
+            console.error('Erro ao processar convite:', convite.id, error);
+            return {
+              id: convite.id,
+              token: convite.token,
+              data_convite: convite.created_at,
+              objetivo: {
+                titulo: 'Erro ao carregar',
+                descricao: 'Não foi possível carregar as informações'
+              },
+              proprietario: {
+                nome: convite.remetente_nome,
+                email: convite.remetente_email
+              }
+            };
+          }
+        })
+      );
+
+      res.json(convitesCompletos);
 
     } catch (error) {
       console.error('Erro ao listar convites:', error);
@@ -68,12 +148,14 @@ class ColaboracaoController {
   async compartilharObjetivo(req, res) {
     try {
       const { usuario_id } = req.user;
-      const { objetivo_id, usuario_destinatario_email, permissao } = req.body;
+      const { objetivo_id, usuario_destinatario_email, permissao = 'leitura' } = req.body;
 
-      // Verificar se o objetivo pertence ao usuário
+      console.log('Dados recebidos:', { objetivo_id, usuario_destinatario_email, permissao });
+
+      // Verificar se o objetivo existe e pertence ao usuário
       const objetivo = await new Promise((resolve, reject) => {
         MoneyFlowDB.get(
-          'SELECT id FROM objetivos WHERE id = ? AND usuario_id = ?',
+          'SELECT id, nome FROM objetivos WHERE id = ? AND usuario_id = ?',
           [objetivo_id, usuario_id],
           (err, row) => {
             if (err) reject(err);
@@ -83,13 +165,13 @@ class ColaboracaoController {
       });
 
       if (!objetivo) {
-        return res.status(404).json({ error: 'Objetivo não encontrado' });
+        return res.status(404).json({ error: 'Objetivo não encontrado ou não pertence ao usuário' });
       }
 
       // Verificar se o destinatário existe
       const destinatario = await new Promise((resolve, reject) => {
         MoneyFlowDB.get(
-          'SELECT id, email FROM usuarios WHERE email = ?',
+          'SELECT id, nome, email FROM usuarios WHERE email = ?',
           [usuario_destinatario_email],
           (err, row) => {
             if (err) reject(err);
@@ -99,14 +181,14 @@ class ColaboracaoController {
       });
 
       if (!destinatario) {
-        return res.status(404).json({ error: 'Usuário destinatário não encontrado' });
+        return res.status(404).json({ error: 'Usuário não encontrado' });
       }
 
-      // Verificar se já existe compartilhamento
+      // Verificar se já existe compartilhamento ativo
       const compartilhamentoExistente = await new Promise((resolve, reject) => {
         MoneyFlowDB.get(
           `SELECT id FROM objetivos_compartilhados 
-           WHERE objetivo_id = ? AND usuario_compartilhado_id = ?`,
+          WHERE objetivo_id = ? AND usuario_compartilhado_id = ? AND ativo = 1`,
           [objetivo_id, destinatario.id],
           (err, row) => {
             if (err) reject(err);
@@ -119,16 +201,16 @@ class ColaboracaoController {
         return res.status(400).json({ error: 'Objetivo já compartilhado com este usuário' });
       }
 
-      // Criar token único
+      // Criar token único para o convite
       const token = crypto.randomBytes(32).toString('hex');
       const expira_em = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 dias
 
-      // Criar convite
+      // Inserir convite
       const resultConvite = await new Promise((resolve, reject) => {
         MoneyFlowDB.run(
           `INSERT INTO convites_colaboracao 
-           (usuario_remetente_id, usuario_destinatario_email, token, expira_em) 
-           VALUES (?, ?, ?, ?)`,
+          (usuario_remetente_id, usuario_destinatario_email, token, expira_em, status) 
+          VALUES (?, ?, ?, ?, 'pendente')`,
           [usuario_id, usuario_destinatario_email, token, expira_em.toISOString()],
           function(err) {
             if (err) reject(err);
@@ -137,13 +219,14 @@ class ColaboracaoController {
         );
       });
 
-      // Criar compartilhamento
+      // Criar compartilhamento (inicialmente inativo até aceitação)
+      // REMOVA a coluna token_convite que não existe
       const resultCompartilhamento = await new Promise((resolve, reject) => {
         MoneyFlowDB.run(
           `INSERT INTO objetivos_compartilhados 
-           (objetivo_id, usuario_dono_id, usuario_compartilhado_id, permissao) 
-           VALUES (?, ?, ?, ?)`,
-          [objetivo_id, usuario_id, destinatario.id, permissao || 'leitura'],
+          (objetivo_id, usuario_dono_id, usuario_compartilhado_id, permissao, ativo) 
+          VALUES (?, ?, ?, ?, 0)`,
+          [objetivo_id, usuario_id, destinatario.id, permissao],
           function(err) {
             if (err) reject(err);
             else resolve({ id: this.lastID });
@@ -152,14 +235,14 @@ class ColaboracaoController {
       });
 
       res.status(201).json({
-        message: 'Objetivo compartilhado com sucesso',
+        message: 'Convite enviado com sucesso',
         convite_id: resultConvite.id,
         compartilhamento_id: resultCompartilhamento.id
       });
 
     } catch (error) {
       console.error('Erro ao compartilhar objetivo:', error);
-      res.status(500).json({ error: 'Erro ao compartilhar objetivo' });
+      res.status(500).json({ error: 'Erro interno ao compartilhar objetivo' });
     }
   }
 
@@ -228,6 +311,48 @@ class ColaboracaoController {
     } catch (error) {
       console.error('Erro ao responder convite:', error);
       res.status(500).json({ error: 'Erro ao responder convite' });
+    }
+  }
+
+  // Listar objetivos que EU compartilhei
+  async listarObjetivosQueCompartilhei(req, res) {
+    try {
+      const { usuario_id } = req.user;
+
+      const objetivos = await new Promise((resolve, reject) => {
+        MoneyFlowDB.all(
+          `SELECT 
+            oc.id as compartilhamento_id,
+            o.id as objetivo_id,
+            o.nome as objetivo_nome,
+            o.descricao,
+            o.valor_total,
+            o.valor_atual,
+            o.data_limite,
+            u.nome as usuario_compartilhado_nome,
+            u.email as usuario_compartilhado_email,
+            oc.permissao,
+            oc.created_at as data_compartilhamento,
+            c.status as status_convite
+          FROM objetivos_compartilhados oc
+          JOIN objetivos o ON oc.objetivo_id = o.id
+          JOIN usuarios u ON oc.usuario_compartilhado_id = u.id
+          LEFT JOIN convites_colaboracao c ON oc.token_convite = c.token
+          WHERE oc.usuario_dono_id = ? AND oc.ativo = 1
+          ORDER BY oc.created_at DESC`,
+          [usuario_id],
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          }
+        );
+      });
+
+      res.json(objetivos);
+
+    } catch (error) {
+      console.error('Erro ao listar objetivos compartilhados:', error);
+      res.status(500).json({ error: 'Erro ao buscar objetivos compartilhados' });
     }
   }
 

@@ -92,8 +92,41 @@ class OrcamentosController {
       const { usuario_id } = req.user;
       const { categoria_id, valor_limite, mes_ano } = req.body;
 
+      console.log('📥 Dados recebidos no backend:', req.body);
+      console.log('👤 Usuário ID:', usuario_id);
+
+      // Validações básicas
       if (!categoria_id || !valor_limite || !mes_ano) {
+        console.log('❌ Campos obrigatórios faltando:', {
+          categoria_id: !categoria_id,
+          valor_limite: !valor_limite, 
+          mes_ano: !mes_ano
+        });
         return res.status(400).json({ error: 'Categoria, valor limite e mês/ano são obrigatórios' });
+      }
+
+      console.log('🔍 Verificando categoria ID:', categoria_id);
+
+      // Verificar se a categoria existe
+      const categoria = await new Promise((resolve, reject) => {
+        MoneyFlowDB.get(
+          'SELECT id, nome FROM categorias WHERE id = ? AND (usuario_id = ? OR usuario_id IS NULL)',
+          [categoria_id, usuario_id],
+          (err, row) => {
+            if (err) {
+              console.error('❌ Erro na query de categoria:', err);
+              reject(err);
+            } else {
+              console.log('🔍 Categoria encontrada:', row);
+              resolve(row);
+            }
+          }
+        );
+      });
+
+      if (!categoria) {
+        console.log('❌ Categoria não encontrada');
+        return res.status(400).json({ error: 'Categoria não encontrada' });
       }
 
       // Verificar se já existe orçamento para essa categoria no mês
@@ -102,24 +135,37 @@ class OrcamentosController {
           'SELECT id FROM orcamentos WHERE categoria_id = ? AND usuario_id = ? AND mes_ano = ?',
           [categoria_id, usuario_id, mes_ano],
           (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
+            if (err) {
+              console.error('❌ Erro na verificação de orçamento existente:', err);
+              reject(err);
+            } else {
+              console.log('🔍 Orçamento existente:', row);
+              resolve(row);
+            }
           }
         );
       });
 
       if (orcamentoExistente) {
+        console.log('❌ Já existe orçamento para esta categoria neste mês');
         return res.status(400).json({ error: 'Já existe um orçamento para esta categoria neste mês' });
       }
+
+      console.log('✅ Inserindo orçamento no banco...');
 
       const result = await new Promise((resolve, reject) => {
         MoneyFlowDB.run(
           `INSERT INTO orcamentos (categoria_id, usuario_id, valor_limite, mes_ano) 
-           VALUES (?, ?, ?, ?)`,
+          VALUES (?, ?, ?, ?)`,
           [categoria_id, usuario_id, valor_limite, mes_ano],
           function(err) {
-            if (err) reject(err);
-            else resolve({ id: this.lastID });
+            if (err) {
+              console.error('❌ Erro ao inserir orçamento:', err);
+              reject(err);
+            } else {
+              console.log('✅ Orçamento inserido com ID:', this.lastID);
+              resolve({ id: this.lastID });
+            }
           }
         );
       });
@@ -130,8 +176,8 @@ class OrcamentosController {
       });
 
     } catch (error) {
-      console.error('Erro ao criar orçamento:', error);
-      res.status(500).json({ error: 'Erro ao criar orçamento' });
+      console.error('Erro ao cadastrar orçamento:', error);
+      res.status(500).json({ error: 'Erro ao cadastrar orçamento' });
     }
   }
 

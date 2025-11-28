@@ -20,4 +20,7 @@ router.post('/responder-convite/:token', colaboracaoController.responderConvite)
 // DELETE /api/colaboracao/compartilhamento/:id - Remover compartilhamento
 router.delete('/compartilhamento/:id', colaboracaoController.removerCompartilhamento);
 
+// GET /api/colaboracao/objetivos-que-compartilhei - Listar objetivos que eu compartilhei
+router.get('/objetivos-que-compartilhei', colaboracaoController.listarObjetivosQueCompartilhei);
+
 module.exports = router;

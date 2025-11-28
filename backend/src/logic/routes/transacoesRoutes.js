@@ -11,6 +11,12 @@ router.post('/', transacoesController.cadastrarTransacao);
 // GET /api/transacoes - Listar transações com filtros
 router.get('/', transacoesController.listarTransacoes);
 
+// PUT /api/transacoes/:id - Atualizar transação ← ADICIONE ESTA LINHA
+router.put('/:id', transacoesController.atualizarTransacao);
+
+// Rota temporária para debug
+router.get('/debug', transacoesController.debugBanco);
+
 // GET /api/transacoes/analise-frequencia - Análise de frequência
 router.get('/analise-frequencia', transacoesController.analiseFrequenciaGastos);
 

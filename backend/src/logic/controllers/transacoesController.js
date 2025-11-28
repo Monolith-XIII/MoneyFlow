@@ -8,31 +8,41 @@ class TransacoesController {
       const { usuario_id } = req.user;
       const transacao = req.body;
 
+      console.log('🔍 Dados recebidos:', transacao);
+      console.log('🔍 Usuario ID:', usuario_id);
+
       // Validações básicas
       if (!transacao.descricao || !transacao.valor || !transacao.tipo || 
           !transacao.data_transacao || !transacao.categoria_id || !transacao.conta_id) {
+        console.log('❌ Campos faltando:', {
+          descricao: !transacao.descricao,
+          valor: !transacao.valor,
+          tipo: !transacao.tipo,
+          data_transacao: !transacao.data_transacao,
+          categoria_id: !transacao.categoria_id,
+          conta_id: !transacao.conta_id
+        });
         return res.status(400).json({ error: 'Campos obrigatórios faltando' });
       }
+
+      console.log('🔍 Verificando categoria ID:', transacao.categoria_id);
 
       // Verificar se a categoria existe e é do tipo correto
       const categoria = await new Promise((resolve, reject) => {
         MoneyFlowDB.get(
-          'SELECT tipo FROM categorias WHERE id = ? AND usuario_id IN (?, NULL)',
+          'SELECT tipo FROM categorias WHERE id = ? AND (usuario_id = ? OR usuario_id IS NULL)',
           [transacao.categoria_id, usuario_id],
           (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
+            if (err) {
+              console.error('❌ Erro na query de categoria:', err);
+              reject(err);
+            } else {
+              console.log('🔍 Resultado da categoria:', row);
+              resolve(row);
+            }
           }
         );
       });
-
-      if (!categoria) {
-        return res.status(400).json({ error: 'Categoria não encontrada' });
-      }
-
-      if (categoria.tipo !== transacao.tipo) {
-        return res.status(400).json({ error: 'Tipo da transação não corresponde à categoria' });
-      }
 
       // Verificar saldo para despesas
       if (transacao.tipo === 'despesa') {
@@ -255,6 +265,139 @@ class TransacoesController {
     } catch (error) {
       console.error('Erro na análise de frequência:', error);
       res.status(500).json({ error: 'Erro na análise de frequência' });
+    }
+  }
+
+  // Atualizar transação
+  async atualizarTransacao(req, res) {
+    try {
+      const { usuario_id } = req.user;
+      const { id } = req.params;
+      const transacao = req.body;
+
+      console.log('📝 Atualizando transação:', { id, usuario_id, transacao });
+
+      // Verificar se a transação existe e pertence ao usuário
+      const transacaoExistente = await new Promise((resolve, reject) => {
+        MoneyFlowDB.get(
+          'SELECT id FROM transacoes WHERE id = ? AND usuario_id = ?',
+          [id, usuario_id],
+          (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          }
+        );
+      });
+
+      if (!transacaoExistente) {
+        return res.status(404).json({ error: 'Transação não encontrada' });
+      }
+
+      // Construir query dinâmica baseada nos campos fornecidos
+      const campos = [];
+      const valores = [];
+
+      if (transacao.descricao !== undefined) {
+        campos.push('descricao = ?');
+        valores.push(transacao.descricao);
+      }
+      if (transacao.valor !== undefined) {
+        campos.push('valor = ?');
+        valores.push(transacao.valor);
+      }
+      if (transacao.tipo !== undefined) {
+        campos.push('tipo = ?');
+        valores.push(transacao.tipo);
+      }
+      if (transacao.data_transacao !== undefined) {
+        campos.push('data_transacao = ?');
+        valores.push(transacao.data_transacao);
+      }
+      if (transacao.categoria_id !== undefined) {
+        campos.push('categoria_id = ?');
+        valores.push(transacao.categoria_id);
+      }
+      if (transacao.conta_id !== undefined) {
+        campos.push('conta_id = ?');
+        valores.push(transacao.conta_id);
+      }
+      if (transacao.pago !== undefined) {
+        campos.push('pago = ?');
+        valores.push(transacao.pago ? 1 : 0);
+      }
+      if (transacao.recorrente !== undefined) {
+        campos.push('recorrente = ?');
+        valores.push(transacao.recorrente ? 1 : 0);
+      }
+
+      if (campos.length === 0) {
+        return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+      }
+
+      // Adicionar ID e usuario_id aos valores
+      valores.push(id, usuario_id);
+
+      const result = await new Promise((resolve, reject) => {
+        MoneyFlowDB.run(
+          `UPDATE transacoes SET ${campos.join(', ')} WHERE id = ? AND usuario_id = ?`,
+          valores,
+          function(err) {
+            if (err) reject(err);
+            else resolve({ changes: this.changes });
+          }
+        );
+      });
+
+      if (result.changes === 0) {
+        return res.status(404).json({ error: 'Transação não encontrada' });
+      }
+
+      res.json({ message: 'Transação atualizada com sucesso' });
+
+    } catch (error) {
+      console.error('Erro ao atualizar transação:', error);
+      res.status(500).json({ error: 'Erro ao atualizar transação' });
+    }
+  }
+
+  // ROTA TEMPORÁRIA - DEBUG
+  async debugBanco(req, res) {
+    try {
+      console.log('🔍 Debug do banco...');
+      
+      // Categorias
+      const categorias = await new Promise((resolve, reject) => {
+        MoneyFlowDB.all('SELECT id, nome, tipo FROM categorias', [], (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        });
+      });
+      
+      // Contas do usuário 2
+      const contas = await new Promise((resolve, reject) => {
+        MoneyFlowDB.all('SELECT id, nome, usuario_id FROM contas WHERE usuario_id = 2', [], (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        });
+      });
+      
+      // Usuários
+      const usuarios = await new Promise((resolve, reject) => {
+        MoneyFlowDB.all('SELECT id, nome, email FROM usuarios', [], (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        });
+      });
+      
+      res.json({
+        categorias,
+        contas,
+        usuarios
+      });
+      
+    } catch (error) {
+      console.error('Erro no debug:', error);
+      res.status(500).json({ error: 'Erro no debug' });
     }
   }
 
