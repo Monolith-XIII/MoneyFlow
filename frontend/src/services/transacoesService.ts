@@ -2,38 +2,53 @@ import { api } from './api';
 import { Transacao } from '../types';
 
 export const transacoesService = {
-  async getAll(filters?: {
-    mes?: number;
-    ano?: number;
-    categoria_id?: number;
-    tipo?: 'receita' | 'despesa';
-  }): Promise<Transacao[]> {
+  async getAll(filters?: any): Promise<Transacao[]> {
     try {
       console.log('📊 Buscando transações...', filters);
       const response = await api.get('/transacoes', { params: filters });
       console.log('📨 Resposta completa:', response.data);
-      console.log('🔍 Tipo da resposta:', typeof response.data);
-      console.log('🔍 É array?', Array.isArray(response.data));
       
-      // O backend pode estar retornando um objeto com paginação
-      let transacoes: Transacao[];
+      let transacoes: Transacao[] = [];
       
       if (Array.isArray(response.data)) {
-        // Se for array direto
         transacoes = response.data;
       } else if (response.data.transacoes && Array.isArray(response.data.transacoes)) {
-        // Se for { transacoes: [], total: X, pagina: X }
         transacoes = response.data.transacoes;
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        // Se for { data: [], total: X }
-        transacoes = response.data.data;
       } else {
-        console.warn('❌ Estrutura inesperada, usando array vazio');
         transacoes = [];
       }
       
-      console.log('✅ Transações extraídas:', transacoes);
-      return transacoes;
+      // MAPEIA OS CAMPOS DO BACKEND PARA O FRONTEND
+      const transacoesMapeadas = transacoes.map((transacao: any) => ({
+        id: transacao.id,
+        descricao: transacao.descricao,
+        valor: transacao.valor,
+        tipo: transacao.tipo,
+        data_transacao: transacao.data_transacao,
+        categoria_id: transacao.categoria_id,
+        conta_id: transacao.conta_id,
+        pago: Boolean(transacao.pago),
+        recorrente: Boolean(transacao.recorrente),
+        // CORRIGE AQUI - mapeia categoria_nome para categoria.nome
+        categoria: transacao.categoria_nome ? {
+          id: transacao.categoria_id,
+          nome: transacao.categoria_nome,
+          tipo: transacao.tipo,
+          cor: transacao.categoria_cor || '#007bff',
+          icone: 'target'
+        } : undefined,
+        conta: transacao.conta_nome ? {
+          id: transacao.conta_id,
+          nome: transacao.conta_nome,
+          tipo: 'corrente',
+          saldo: 0,
+          cor: '#007bff',
+          usuario_id: 1
+        } : undefined
+      }));
+      
+      console.log('✅ Transações mapeadas:', transacoesMapeadas);
+      return transacoesMapeadas;
       
     } catch (error) {
       console.warn('❌ API não disponível, usando transações mock');
@@ -48,7 +63,23 @@ export const transacoesService = {
 
   async create(transacao: Omit<Transacao, 'id'>): Promise<Transacao> {
     console.log('📤 Criando transação:', transacao);
-    const response = await api.post('/transacoes', transacao);
+    
+    const transacaoData = {
+      descricao: transacao.descricao,
+      valor: transacao.valor,
+      tipo: transacao.tipo,
+      data_transacao: transacao.data_transacao.includes('T') 
+        ? transacao.data_transacao 
+        : transacao.data_transacao + 'T00:00:00.000Z',
+      categoria_id: transacao.categoria_id,
+      conta_id: transacao.conta_id,
+      pago: transacao.pago,
+      recorrente: transacao.recorrente
+    };
+
+    console.log('📤 Dados enviados para backend:', transacaoData);
+    
+    const response = await api.post('/transacoes', transacaoData);
     console.log('✅ Transação criada:', response.data);
     return response.data;
   },

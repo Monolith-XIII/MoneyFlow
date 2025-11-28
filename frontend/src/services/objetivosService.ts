@@ -5,7 +5,29 @@ export const objetivosService = {
   async getAll(): Promise<Objetivo[]> {
     try {
       const response = await api.get('/objetivos');
-      return response.data;
+      console.log('🎯 Resposta completa do backend:', response.data);
+      
+      if (Array.isArray(response.data)) {
+        // MAPEIA OS CAMPOS DO BACKEND PARA O FRONTEND
+        const objetivosMapeados = response.data.map((objetivo: any) => ({
+          id: objetivo.id,
+          titulo: objetivo.nome, // ← MAPEIA nome → titulo
+          descricao: objetivo.descricao,
+          valor_objetivo: objetivo.valor_total, // ← MAPEIA valor_total → valor_objetivo
+          valor_atual: objetivo.valor_atual,
+          data_limite: objetivo.data_conclusao, // ← MAPEIA data_conclusao → data_limite
+          cor: objetivo.cor,
+          icone: objetivo.icone,
+          usuario_id: objetivo.usuario_id,
+          compartilhado: objetivo.papel === 'membro' // ← INFERE compartilhado do campo papel
+        }));
+        
+        console.log('🎯 Objetivos mapeados:', objetivosMapeados);
+        return objetivosMapeados;
+      } else {
+        console.warn('❌ Resposta não é array');
+        return [];
+      }
     } catch (error) {
       console.warn('API não disponível, usando objetivos mock');
       return this.getMockObjetivos();
@@ -18,8 +40,30 @@ export const objetivosService = {
   },
 
   async create(objetivo: Omit<Objetivo, 'id'>): Promise<Objetivo> {
-    const response = await api.post('/objetivos', objetivo);
-    return response.data;
+    console.log('📤 Criando objetivo:', objetivo);
+    
+    // Mapeia campos do frontend para o backend
+    const objetivoData = {
+      nome: objetivo.titulo, // ← MAPEIA titulo → nome
+      descricao: objetivo.descricao,
+      valor_total: objetivo.valor_objetivo, // ← MAPEIA valor_objetivo → valor_total
+      valor_atual: objetivo.valor_atual,
+      data_conclusao: objetivo.data_limite, // ← MAPEIA data_limite → data_conclusao
+      cor: objetivo.cor,
+      icone: objetivo.icone,
+      tipo: 'personalizado'
+    };
+
+    console.log('📤 Dados enviados para backend:', objetivoData);
+    
+    const response = await api.post('/objetivos', objetivoData);
+    console.log('✅ Objetivo criado:', response.data);
+    
+    // Mapeia a resposta de volta para o formato do frontend
+    return {
+      ...objetivo,
+      id: response.data.objetivo_id || Date.now()
+    };
   },
 
   async update(id: number, objetivo: Partial<Objetivo>): Promise<Objetivo> {

@@ -16,8 +16,22 @@ export const simulacoesService = {
     return response.data;
   },
 
-  async create(simulacao: any): Promise<any> {
-    const response = await api.post('/simulacoes', simulacao);
+  async create(simulacaoData: {
+    nome: string;
+    descricao?: string;
+    scenario_data: {
+      receita_atual: number;
+      despesa_atual: number;
+      reducao_despesas_percentual?: number;
+      aumento_receitas_percentual?: number;
+      meses_projecao?: number;
+      investimento_mensal?: number;
+      taxa_retorno_anual?: number;
+    };
+  }): Promise<any> {
+    console.log('📤 Enviando dados para simulação:', simulacaoData);
+    
+    const response = await api.post('/simulacoes', simulacaoData);
     return response.data;
   },
 
@@ -39,20 +53,6 @@ export const simulacoesService = {
         resultado: {
           tempo_objetivo_reduzido: 8,
           economia_mensal: 1200
-        }
-      },
-      {
-        id: 2,
-        nome: 'Redução de Despesas',
-        descricao: 'Cortar 15% das despesas variáveis',
-        data_criacao: '2025-11-26',
-        parametros: {
-          reducao_despesas: 15,
-          manter_renda: true
-        },
-        resultado: {
-          tempo_objetivo_reduzido: 6,
-          economia_mensal: 850
         }
       }
     ];

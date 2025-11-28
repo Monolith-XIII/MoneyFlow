@@ -10,6 +10,15 @@ export const Simulacoes: React.FC = () => {
   const [simulacoes, setSimulacoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  
+  // Estados do formulário
+  const [nome, setNome] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [receitaAtual, setReceitaAtual] = useState('');
+  const [despesaAtual, setDespesaAtual] = useState('');
+  const [aumentoReceita, setAumentoReceita] = useState('0');
+  const [reducaoDespesa, setReducaoDespesa] = useState('0');
+  const [mesesProjecao, setMesesProjecao] = useState('12');
 
   useEffect(() => {
     loadSimulacoes();
@@ -19,8 +28,10 @@ export const Simulacoes: React.FC = () => {
     try {
       setLoading(true);
       const data = await simulacoesService.getAll();
+      console.log('📊 Simulações carregadas:', data);
       setSimulacoes(data);
     } catch (error) {
+      console.error('Erro ao carregar simulações:', error);
       toast.error('Erro ao carregar simulações');
     } finally {
       setLoading(false);
@@ -40,23 +51,54 @@ export const Simulacoes: React.FC = () => {
   };
 
   const handleNovaSimulacao = async () => {
-    // Simular criação de nova simulação
+    // Validações
+    if (!nome.trim()) {
+      toast.error('Nome da simulação é obrigatório');
+      return;
+    }
+
+    if (!receitaAtual || !despesaAtual) {
+      toast.error('Receita e despesa atuais são obrigatórias');
+      return;
+    }
+
     try {
-      const novaSimulacao = {
-        nome: 'Nova Simulação',
-        descricao: 'Simulação personalizada',
-        parametros: {
-          aumento_renda: 10,
-          reducao_despesas: 5
+      const simulacaoData = {
+        nome: nome.trim(),
+        descricao: descricao.trim(),
+        scenario_data: {
+          receita_atual: parseFloat(receitaAtual),
+          despesa_atual: parseFloat(despesaAtual),
+          aumento_receitas_percentual: parseFloat(aumentoReceita),
+          reducao_despesas_percentual: parseFloat(reducaoDespesa),
+          meses_projecao: parseInt(mesesProjecao),
+          investimento_mensal: 0,
+          taxa_retorno_anual: 0
         }
       };
+
+      console.log('🎯 Criando simulação com dados:', simulacaoData);
       
-      await simulacoesService.create(novaSimulacao);
-      toast.success('Simulação criada com sucesso');
+      const resultado = await simulacoesService.create(simulacaoData);
+      
+      toast.success('Simulação criada com sucesso!');
+      
+      // Limpar formulário
+      setNome('');
+      setDescricao('');
+      setReceitaAtual('');
+      setDespesaAtual('');
+      setAumentoReceita('0');
+      setReducaoDespesa('0');
+      setMesesProjecao('12');
       setShowForm(false);
+      
+      // Recarregar lista
       loadSimulacoes();
-    } catch (error) {
-      toast.error('Erro ao criar simulação');
+      
+    } catch (error: any) {
+      console.error('Erro detalhado ao criar simulação:', error);
+      toast.error(error.response?.data?.error || 'Erro ao criar simulação');
     }
   };
 
@@ -69,6 +111,50 @@ export const Simulacoes: React.FC = () => {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
+  // Função para exibir resultados da simulação real
+  const renderResultados = (simulacao: any) => {
+    // Se for simulação real do backend
+    if (simulacao.resultado && simulacao.resultado.resumo) {
+      const { resumo } = simulacao.resultado;
+      return (
+        <div className="border-t pt-3">
+          <h4 className="font-medium text-gray-900 mb-2">Resultados:</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center text-green-600">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              <span>Saldo final: {formatCurrency(resumo.saldo_final)}</span>
+            </div>
+            <div className="flex items-center text-blue-600">
+              <Target className="h-4 w-4 mr-2" />
+              <span>Economia total: {formatCurrency(resumo.economia_total)}</span>
+            </div>
+            <div className="flex items-center text-gray-600">
+              <Calendar className="h-4 w-4 mr-2" />
+              <span>Receita projetada: {formatCurrency(resumo.receita_total_projetada)}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Se for simulação mock (fallback)
+    return (
+      <div className="border-t pt-3">
+        <h4 className="font-medium text-gray-900 mb-2">Resultados:</h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center text-green-600">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            <span>Economia mensal: {formatCurrency(simulacao.resultado?.economia_mensal || 0)}</span>
+          </div>
+          <div className="flex items-center text-blue-600">
+            <Target className="h-4 w-4 mr-2" />
+            <span>Tempo reduzido: {simulacao.resultado?.tempo_objetivo_reduzido || 0} meses</span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -103,30 +189,84 @@ export const Simulacoes: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome da Simulação
+                  Nome da Simulação *
                 </label>
-                <Input placeholder="Ex: Aumento de Renda" />
+                <Input 
+                  placeholder="Ex: Aumento de Renda" 
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Descrição
                 </label>
-                <Input placeholder="Descreva o cenário..." />
+                <Input 
+                  placeholder="Descreva o cenário..." 
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Aumento de Renda (%)
+                  Receita Atual (R$) *
                 </label>
-                <Input type="number" placeholder="0" />
+                <Input 
+                  type="number" 
+                  placeholder="5000" 
+                  value={receitaAtual}
+                  onChange={(e) => setReceitaAtual(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Despesa Atual (R$) *
+                </label>
+                <Input 
+                  type="number" 
+                  placeholder="3000" 
+                  value={despesaAtual}
+                  onChange={(e) => setDespesaAtual(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Aumento de Receita (%)
+                </label>
+                <Input 
+                  type="number" 
+                  placeholder="0" 
+                  value={aumentoReceita}
+                  onChange={(e) => setAumentoReceita(e.target.value)}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Redução de Despesas (%)
                 </label>
-                <Input type="number" placeholder="0" />
+                <Input 
+                  type="number" 
+                  placeholder="0" 
+                  value={reducaoDespesa}
+                  onChange={(e) => setReducaoDespesa(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Meses de Projeção
+                </label>
+                <Input 
+                  type="number" 
+                  placeholder="12" 
+                  value={mesesProjecao}
+                  onChange={(e) => setMesesProjecao(e.target.value)}
+                />
               </div>
             </div>
 
@@ -169,40 +309,50 @@ export const Simulacoes: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Criada em:</span>
-                  <span className="text-gray-900">{formatDate(simulacao.data_criacao)}</span>
+                  <span className="text-gray-900">
+                    {simulacao.created_at ? formatDate(simulacao.created_at) : formatDate(simulacao.data_criacao)}
+                  </span>
                 </div>
 
                 <div className="border-t pt-3">
                   <h4 className="font-medium text-gray-900 mb-2">Parâmetros:</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Aumento de Renda:</span>
-                      <span className="text-green-600">+{simulacao.parametros.aumento_renda}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Redução de Despesas:</span>
-                      <span className="text-red-600">-{simulacao.parametros.reducao_despesas}%</span>
-                    </div>
+                    {simulacao.scenario_data ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Receita atual:</span>
+                          <span>{formatCurrency(simulacao.scenario_data.receita_atual)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Despesa atual:</span>
+                          <span>{formatCurrency(simulacao.scenario_data.despesa_atual)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Aumento receita:</span>
+                          <span className="text-green-600">+{simulacao.scenario_data.aumento_receitas_percentual}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Redução despesas:</span>
+                          <span className="text-red-600">-{simulacao.scenario_data.reducao_despesas_percentual}%</span>
+                        </div>
+                      </>
+                    ) : (
+                      // Fallback para dados mock
+                      <>
+                        <div className="flex justify-between">
+                          <span>Aumento de Renda:</span>
+                          <span className="text-green-600">+{simulacao.parametros?.aumento_renda}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Redução de Despesas:</span>
+                          <span className="text-red-600">-{simulacao.parametros?.reducao_despesas}%</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                <div className="border-t pt-3">
-                  <h4 className="font-medium text-gray-900 mb-2">Resultados:</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center text-green-600">
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      <span>Economia mensal: {formatCurrency(simulacao.resultado.economia_mensal)}</span>
-                    </div>
-                    <div className="flex items-center text-blue-600">
-                      <Target className="h-4 w-4 mr-2" />
-                      <span>Tempo reduzido: {simulacao.resultado.tempo_objetivo_reduzido} meses</span>
-                    </div>
-                    <div className="flex items-center text-gray-600">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      <span>Meta antecipada em {simulacao.resultado.tempo_objetivo_reduzido} meses</span>
-                    </div>
-                  </div>
-                </div>
+                {renderResultados(simulacao)}
               </div>
             </CardContent>
           </Card>

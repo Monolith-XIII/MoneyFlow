@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import { Users, Mail, Target, Clock, Check, X, Share2 } from 'lucide-react';
+import { Users, Mail, Target, Clock, Check, X, Share2, Trash2 } from 'lucide-react';
 import { colaboracaoService } from '../services/colaboracaoService';
+import { objetivosService } from '../services/objetivosService'; // Importe o serviço de objetivos
 import toast from 'react-hot-toast';
 
 export const Colaboracao: React.FC = () => {
   const [objetivosCompartilhados, setObjetivosCompartilhados] = useState<any[]>([]);
+  const [objetivosQueCompartilhei, setObjetivosQueCompartilhei] = useState<any[]>([]);
   const [convitesPendentes, setConvitesPendentes] = useState<any[]>([]);
+  const [meusObjetivos, setMeusObjetivos] = useState<any[]>([]); // ✅ DEFINIDA AQUI
   const [loading, setLoading] = useState(true);
   const [emailCompartilhamento, setEmailCompartilhamento] = useState('');
   const [objetivoSelecionado, setObjetivoSelecionado] = useState('');
@@ -20,13 +23,32 @@ export const Colaboracao: React.FC = () => {
   const loadDados = async () => {
     try {
       setLoading(true);
-      const [objetivos, convites] = await Promise.all([
+      
+      // Carrega todos os dados em paralelo
+      const [objetivosComigo, convites, objetivosCompartilhadosPorMim] = await Promise.all([
         colaboracaoService.getObjetivosCompartilhados(),
-        colaboracaoService.getConvitesPendentes()
+        colaboracaoService.getConvitesPendentes(),
+        colaboracaoService.getObjetivosQueCompartilhei()
       ]);
-      setObjetivosCompartilhados(objetivos);
+      
+      // Carrega os objetivos do usuário usando o serviço existente
+      const todosObjetivos = await objetivosService.getAll();
+      
+      // Filtra apenas os objetivos onde o usuário é dono (não compartilhados)
+      const objetivosDoUsuario = todosObjetivos.filter(objetivo => 
+        !objetivo.compartilhado
+      );
+      
+      console.log('🎯 Todos objetivos:', todosObjetivos);
+      console.log('🎯 Objetivos do usuário (para compartilhar):', objetivosDoUsuario);
+      
+      setObjetivosCompartilhados(objetivosComigo);
       setConvitesPendentes(convites);
+      setMeusObjetivos(objetivosDoUsuario); // ✅ AGORA DEFINIDA
+      setObjetivosQueCompartilhei(objetivosCompartilhadosPorMim);
+      
     } catch (error) {
+      console.error('Erro ao carregar dados:', error);
       toast.error('Erro ao carregar dados de colaboração');
     } finally {
       setLoading(false);
@@ -40,6 +62,8 @@ export const Colaboracao: React.FC = () => {
     }
 
     try {
+      console.log('Enviando convite para objetivo:', objetivoSelecionado);
+      
       await colaboracaoService.compartilharObjetivo(
         parseInt(objetivoSelecionado),
         emailCompartilhamento
@@ -47,8 +71,10 @@ export const Colaboracao: React.FC = () => {
       toast.success('Convite enviado com sucesso!');
       setEmailCompartilhamento('');
       setObjetivoSelecionado('');
-    } catch (error) {
-      toast.error('Erro ao enviar convite');
+      loadDados(); // Recarregar dados para atualizar as listas
+    } catch (error: any) {
+      console.error('Erro ao enviar convite:', error);
+      toast.error(error.message || 'Erro ao enviar convite');
     }
   };
 
@@ -59,6 +85,16 @@ export const Colaboracao: React.FC = () => {
       loadDados();
     } catch (error) {
       toast.error('Erro ao processar convite');
+    }
+  };
+
+  const handleRemoverCompartilhamento = async (compartilhamentoId: number) => {
+    try {
+      await colaboracaoService.removerCompartilhamento(compartilhamentoId);
+      toast.success('Compartilhamento removido com sucesso!');
+      loadDados();
+    } catch (error) {
+      toast.error('Erro ao remover compartilhamento');
     }
   };
 
@@ -111,9 +147,17 @@ export const Colaboracao: React.FC = () => {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
                 <option value="">Selecione um objetivo</option>
-                <option value="1">Viagem para Europa</option>
-                <option value="2">Notebook Novo</option>
+                {meusObjetivos.map((objetivo) => (
+                  <option key={objetivo.id} value={objetivo.id}>
+                    {objetivo.titulo} - {formatCurrency(objetivo.valor_atual)} / {formatCurrency(objetivo.valor_objetivo)}
+                  </option>
+                ))}
               </select>
+              {meusObjetivos.length === 0 && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Você não tem objetivos para compartilhar. Crie um objetivo primeiro.
+                </p>
+              )}
             </div>
 
             <div>
@@ -132,7 +176,7 @@ export const Colaboracao: React.FC = () => {
             <Button 
               className="w-full" 
               onClick={handleCompartilhar}
-              disabled={!emailCompartilhamento || !objetivoSelecionado}
+              disabled={!emailCompartilhamento || !objetivoSelecionado || meusObjetivos.length === 0}
             >
               <Share2 className="h-4 w-4 mr-2" />
               Enviar Convite
@@ -160,7 +204,7 @@ export const Colaboracao: React.FC = () => {
                   <div key={convite.id} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium text-gray-900">
-                        {convite.objetivo.titulo}
+                        {convite.objetivo?.titulo || 'Convite'}
                       </h4>
                       <span className="text-sm text-gray-500">
                         {formatDate(convite.data_convite)}
@@ -196,50 +240,115 @@ export const Colaboracao: React.FC = () => {
         </Card>
       </div>
 
-      {/* Objetivos Compartilhados */}
+      {/* Objetivos que EU compartilhei */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center space-x-2">
+            <Share2 className="h-5 w-5 text-purple-600" />
+            <h3 className="text-lg font-medium">Objetivos que Compartilhei</h3>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {objetivosQueCompartilhei.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+              <p>Você não compartilhou nenhum objetivo</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {objetivosQueCompartilhei.map((objetivo) => (
+                <div key={objetivo.compartilhamento_id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-gray-900">
+                      {objetivo.objetivo_nome}
+                    </h4>
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        objetivo.status_convite === 'aceito' 
+                          ? 'bg-green-100 text-green-800'
+                          : objetivo.status_convite === 'pendente'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {objetivo.status_convite || 'pendente'}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRemoverCompartilhamento(objetivo.compartilhamento_id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Compartilhado com: {objetivo.usuario_compartilhado_nome} ({objetivo.usuario_compartilhado_email})
+                  </p>
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>Permissão: {objetivo.permissao === 'leitura' ? 'Somente leitura' : 'Edição'}</span>
+                    <span>Desde: {formatDate(objetivo.data_compartilhamento)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Objetivos Compartilhados COMIGO */}
       <Card>
         <CardHeader>
           <div className="flex items-center space-x-2">
             <Users className="h-5 w-5 text-green-600" />
-            <h3 className="text-lg font-medium">Objetivos Compartilhados</h3>
+            <h3 className="text-lg font-medium">Objetivos Compartilhados Comigo</h3>
           </div>
         </CardHeader>
         <CardContent>
           {objetivosCompartilhados.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Target className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-              <p>Nenhum objetivo compartilhado</p>
+              <p>Nenhum objetivo compartilhado com você</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {objetivosCompartilhados.map((objetivo) => (
                 <div key={objetivo.id} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-gray-900">{objetivo.titulo}</h4>
+                    <h4 className="font-semibold text-gray-900">
+                      {objetivo.objetivo_nome}
+                    </h4>
                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                      {objetivo.participantes} participantes
+                      Compartilhado
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mb-3">{objetivo.descricao}</p>
+                  
+                  {objetivo.descricao && (
+                    <p className="text-sm text-gray-600 mb-3">{objetivo.descricao}</p>
+                  )}
                   
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Progresso:</span>
                       <span>
-                        {formatCurrency(objetivo.valor_atual)} / {formatCurrency(objetivo.valor_objetivo)}
+                        {formatCurrency(objetivo.valor_atual)} / {formatCurrency(objetivo.valor_total)}
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
                         className="h-2 rounded-full bg-green-500"
                         style={{
-                          width: `${(objetivo.valor_atual / objetivo.valor_objetivo) * 100}%`
+                          width: `${objetivo.valor_total > 0 ? Math.min((objetivo.valor_atual / objetivo.valor_total) * 100, 100) : 0}%`
                         }}
                       ></div>
                     </div>
                     <div className="flex justify-between text-xs text-gray-500">
-                      <span>Proprietário: {objetivo.proprietario.nome}</span>
-                      <span>Vence em {formatDate(objetivo.data_limite)}</span>
+                      <span>Dono: {objetivo.usuario_dono_nome}</span>
+                      {objetivo.data_limite && (
+                        <span>Vence em {formatDate(objetivo.data_limite)}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Permissão: {objetivo.permissao === 'leitura' ? 'Somente leitura' : 'Edição'}
                     </div>
                   </div>
                 </div>

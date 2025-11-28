@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import { Plus, Search, PieChart, AlertTriangle, Edit, Trash2 } from 'lucide-react';
-import { Orcamento } from '../types';
+import { Plus, Search, PieChart, AlertTriangle, Edit, Trash2, X } from 'lucide-react';
+import { Orcamento, Categoria } from '../types/index';
 import { orcamentosService } from '../services/orcamentosService';
+import { categoriasService } from '../services/categoriasService';
 import toast from 'react-hot-toast';
 
 export const Orcamentos: React.FC = () => {
@@ -13,6 +14,8 @@ export const Orcamentos: React.FC = () => {
   const [search, setSearch] = useState('');
   const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth() + 1);
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
+  const [showModal, setShowModal] = useState(false);
+  const [editingOrcamento, setEditingOrcamento] = useState<Orcamento | null>(null);
 
   useEffect(() => {
     loadOrcamentos();
@@ -22,15 +25,63 @@ export const Orcamentos: React.FC = () => {
     try {
       setLoading(true);
       const data = await orcamentosService.getAll();
-      // Filtrar por mês/ano (no backend real isso seria feito na API)
-      const orcamentosFiltrados = data.filter(
-        o => o.mes === mesSelecionado && o.ano === anoSelecionado
-      );
+      
+      console.log('📊 === INÍCIO DEBUG ORÇAMENTOS ===');
+      console.log('📊 Dados recebidos do service:', data);
+      console.log('📊 Filtro atual:', { mes: mesSelecionado, ano: anoSelecionado });
+      
+      const orcamentosFiltrados = data.filter(orcamento => {
+        const passaFiltro = orcamento.mes === mesSelecionado && orcamento.ano === anoSelecionado;
+        console.log(`📊 Orçamento ${orcamento.id}:`, {
+          id: orcamento.id,
+          mes: orcamento.mes,
+          ano: orcamento.ano,
+          categoria: orcamento.categoria?.nome,
+          passaFiltro: passaFiltro
+        });
+        return passaFiltro;
+      });
+      
+      console.log('📊 Orçamentos que passaram no filtro:', orcamentosFiltrados);
+      console.log('📊 === FIM DEBUG ORÇAMENTOS ===');
+      
       setOrcamentos(orcamentosFiltrados);
     } catch (error) {
       toast.error('Erro ao carregar orçamentos');
+      console.error('❌ Erro ao carregar orçamentos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNovoOrcamento = () => {
+    setEditingOrcamento(null);
+    setShowModal(true);
+  };
+
+  const handleEdit = (orcamento: Orcamento) => {
+    setEditingOrcamento(orcamento);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingOrcamento(null);
+  };
+
+  const handleSaveOrcamento = async (orcamentoData: Omit<Orcamento, 'id'>) => {
+    try {
+      if (editingOrcamento) {
+        await orcamentosService.update(editingOrcamento.id, orcamentoData);
+        toast.success('Orçamento atualizado com sucesso');
+      } else {
+        await orcamentosService.create(orcamentoData);
+        toast.success('Orçamento criado com sucesso');
+      }
+      handleCloseModal();
+      loadOrcamentos();
+    } catch (error) {
+      toast.error(`Erro ao ${editingOrcamento ? 'atualizar' : 'criar'} orçamento`);
     }
   };
 
@@ -86,7 +137,7 @@ export const Orcamentos: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Orçamentos</h1>
-        <Button icon={Plus}>
+        <Button icon={Plus} onClick={handleNovoOrcamento}>
           Novo Orçamento
         </Button>
       </div>
@@ -183,7 +234,10 @@ export const Orcamentos: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex space-x-1">
-                  <button className="p-1 text-gray-400 hover:text-blue-600 rounded">
+                  <button 
+                    className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                    onClick={() => handleEdit(orcamento)}
+                  >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button 
@@ -231,12 +285,139 @@ export const Orcamentos: React.FC = () => {
           <CardContent className="text-center py-12">
             <PieChart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">Nenhum orçamento encontrado para este período</p>
-            <Button className="mt-4" icon={Plus}>
+            <Button className="mt-4" icon={Plus} onClick={handleNovoOrcamento}>
               Criar Primeiro Orçamento
             </Button>
           </CardContent>
         </Card>
       )}
+
+      {/* Modal para criar/editar orçamento */}
+      {showModal && (
+        <OrcamentoModal
+          orcamento={editingOrcamento}
+          onSave={handleSaveOrcamento}
+          onClose={handleCloseModal}
+          mesSelecionado={mesSelecionado}
+          anoSelecionado={anoSelecionado}
+        />
+      )}
+    </div>
+  );
+};
+
+// Componente OrcamentoModal
+const OrcamentoModal: React.FC<{
+  orcamento?: Orcamento | null;
+  onSave: (orcamento: Omit<Orcamento, 'id'>) => void;
+  onClose: () => void;
+  mesSelecionado: number;
+  anoSelecionado: number;
+}> = ({ orcamento, onSave, onClose, mesSelecionado, anoSelecionado }) => {
+  const [valor, setValor] = useState('');
+  const [categoriaId, setCategoriaId] = useState('1');
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+
+  useEffect(() => {
+    const loadCategorias = async () => {
+      try {
+        const cats = await categoriasService.getAll();
+        // Filtra apenas categorias de despesa (orçamentos são para despesas)
+        const categoriasDespesa = cats.filter(cat => cat.tipo === 'despesa');
+        setCategorias(categoriasDespesa);
+        
+        // Seta a primeira categoria como padrão se não tiver selecionada
+        if (categoriasDespesa.length > 0 && !categoriaId) {
+          setCategoriaId(categoriasDespesa[0].id.toString());
+        }
+      } catch (error) {
+        console.error('Erro ao carregar categorias:', error);
+      }
+    };
+    
+    loadCategorias();
+  }, []);
+
+  useEffect(() => {
+    if (orcamento) {
+      setValor(orcamento.valor.toString());
+      setCategoriaId(orcamento.categoria_id?.toString() || '1');
+    } else {
+      setValor('');
+      setCategoriaId('1');
+    }
+  }, [orcamento]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!valor) return;
+
+    onSave({
+      valor: parseFloat(valor),
+      mes: mesSelecionado,
+      ano: anoSelecionado,
+      categoria_id: parseInt(categoriaId),
+      usuario_id: 1
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-md">
+        <CardHeader className="flex flex-row items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">
+            {orcamento ? 'Editar Orçamento' : 'Novo Orçamento'}
+          </h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X className="h-5 w-5" />
+          </button>
+        </CardHeader>
+        <CardContent className="p-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Valor"
+              type="number"
+              step="0.01"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              placeholder="0,00"
+              required
+            />
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Categoria
+              </label>
+              <select
+                value={categoriaId}
+                onChange={(e) => setCategoriaId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                required
+              >
+                <option value="">Selecione uma categoria</option>
+                {categorias.map(categoria => (
+                  <option key={categoria.id} value={categoria.id}>
+                    {categoria.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-sm text-gray-600">
+              <p>Período: {mesSelecionado}/{anoSelecionado}</p>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+                Cancelar
+              </Button>
+              <Button type="submit" className="flex-1">
+                {orcamento ? 'Atualizar' : 'Criar'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 };
