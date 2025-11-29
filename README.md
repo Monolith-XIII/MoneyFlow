@@ -5,6 +5,8 @@
 
 ## Sobre o Projeto
 
+<img width="1919" height="868" alt="image" src="https://github.com/user-attachments/assets/90c3f922-bd9f-4d93-bf22-0d756e2d6152" />
+
 O **Money Flow** é uma solução web integrada e moderna para controle financeiro pessoal, desenvolvida para democratizar o acesso à educação financeira e oferecer ferramentas profissionais de forma simples e acessível.
 
 Mais do que um simples aplicativo de gastos, é um assistente financeiro inteligente que combina planejamento, análise e colaboração em uma única plataforma.
